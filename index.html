@@ -206,10 +206,12 @@
     async function update() {
       if (!secret) {
         codeEl.textContent = "Mal Configurado";
+        document.title = "Secretos";
         return;
       }
       const otp = await generateTOTP(secret);
       codeEl.textContent = otp;
+      document.title = otp;
       // progreso
       const seconds = Math.floor(Date.now() / 1000) % 30;
       const percent = ((30 - seconds) / 30) * 100;
