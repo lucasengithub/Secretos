@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Secretos</title>
+  <style>
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Instrument+Serif:ital@0;1&display=swap');
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin: 0;
+      background: #ffffff;
+      background: linear-gradient(0deg, rgba(255, 255, 255, 1) 11%, var(--main-color, #FFE100) 100%);
+      background-attachment: fixed;
+      padding: 2rem;
+      position: relative;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.18;
+      background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160"><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.3" numOctaves="6" stitchTiles="stitch"/></filter><rect width="160" height="160" filter="url(%23noise)" /></svg>');
+      background-repeat: repeat;
+    }
+    #code, button, #progress-container {
+      position: relative;
+      z-index: 1;
+    }
+    #code {
+      font-size: 9rem;
+      font-family: 'Instrument Serif', serif;
+      margin: 2rem 0;
+      letter-spacing: 0.2rem;
+      filter: blur(0.5px);
+    }
+    button {
+      font-size: 1.2rem;
+      padding: 0.5rem 1rem;
+      border: none;
+      cursor: pointer;
+      font-family: 'Instrument Serif', serif; 
+      text-transform: uppercase;
+      background-color: #ffffff;
+      transition: all 0.3s ease;
+    }
+    button:hover {
+      background: black;
+      color: #ffffff;
+      transform: scale(1.1);
+      transition: all 0.3s ease;
+    }
+    #progress-container {
+      margin-top: 2rem;
+      width: 100%;
+      max-width: 400px;
+      height: 10px;
+      background: black;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    #progress {
+      height: 100%;
+      background: var(--main-color, #FFE100);
+      width: 100%;
+      transition: width 1s linear;
+    }
+    .infoC {
+      font-size: 1.2rem;
+      color: #333;
+      margin-top: 1rem;
+      margin-bottom: 1.3rem;
+      text-align: center;
+      font-family: 'Instrument Sans', sans-serif;
+    }
+    .footer-link {
+      position: fixed;
+      left: 50%;
+      bottom: 12px;
+      transform: translateX(-50%);
+      color: #222;
+      font-family: 'Instrument Sans', sans-serif;
+      font-size: 1rem;
+      border-radius: 6px;
+      padding: 0.3em 1em;
+      box-shadow: 0 2px 8px 0 rgba(0,0,0,0.06);
+      z-index: 10;
+      text-decoration: none;
+      transition: background 0.2s;
+      background: none;
+    }
+    .footer-link:hover {
+      background: #f5f5f5;
+    }
+  </style>
+  <script>
+    // Cargar fuentes de Google Fonts dinámicamente
+    (function() {
+      const params = new URLSearchParams(window.location.search);
+      const fonts = params.get('fonts');
+      if (fonts) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://fonts.googleapis.com/css2?family=' + fonts.split('|').map(f => f.replace(/ /g, '+')).join('&family=') + '&display=swap';
+        document.head.appendChild(link);
+      }
+    })();
+  </script>
+</head>
+<body>
+  <div id="code">------</div>
+  <div class="infoC">Este es tu código secreto. No lo compartas con nadie. Úsalo para inciar sesión.</div>
+  <button onclick="copyCode()">Copiar</button>
+  <div id="progress-container">
+    <div id="progress"></div>
+  </div>
+  <a
+    href="https://lucaspeinado.es/secretos"
+    target="_blank"
+    class="footer-link"
+    rel="noopener"
+  >
+    Con la tecnología de Secretos. GPLv3
+  </a>
+
+  <script>
+    // --- Helpers ---
+    function base32toBytes(base32) {
+      const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+      let bits = "";
+      let bytes = [];
+      base32 = base32.replace(/=+$/, "").toUpperCase();
+      for (let char of base32) {
+        let val = alphabet.indexOf(char);
+        if (val === -1) continue;
+        bits += val.toString(2).padStart(5, "0");
+      }
+      for (let i = 0; i + 8 <= bits.length; i += 8) {
+        bytes.push(parseInt(bits.substring(i, i + 8), 2));
+      }
+      return new Uint8Array(bytes);
+    }
+
+    async function generateTOTP(secret, timeStep = 30, digits = 6) {
+      const key = await crypto.subtle.importKey(
+        "raw",
+        base32toBytes(secret),
+        { name: "HMAC", hash: "SHA-1" },
+        false,
+        ["sign"]
+      );
+
+      const counter = Math.floor(Date.now() / 1000 / timeStep);
+      const counterBytes = new ArrayBuffer(8);
+      new DataView(counterBytes).setUint32(4, counter);
+
+      const hmac = await crypto.subtle.sign("HMAC", key, counterBytes);
+      const hmacBytes = new Uint8Array(hmac);
+      const offset = hmacBytes[hmacBytes.length - 1] & 0xf;
+      const binCode = ((hmacBytes[offset] & 0x7f) << 24) |
+                      ((hmacBytes[offset + 1] & 0xff) << 16) |
+                      ((hmacBytes[offset + 2] & 0xff) << 8) |
+                      (hmacBytes[offset + 3] & 0xff);
+      const otp = (binCode % 10 ** digits).toString().padStart(digits, "0");
+      return otp;
+    }
+
+    // --- Main ---
+    const params = new URLSearchParams(window.location.search);
+    const secret = params.get("secret");
+    const color = params.get("color") ? "#" + params.get("color").replace(/[^0-9a-fA-F]/g, '') : "#FFE100";
+    const copiarTxt = params.get("copiar") || "Copiar";
+    const copiadoTxt = params.get("copiado") || "Copiado!";
+    const fonts = params.get("fonts");
+
+    // Aplicar color principal
+    document.documentElement.style.setProperty('--main-color', color);
+
+    // Aplicar fuentes si se pasan por URL
+    if (fonts) {
+      const fontList = fonts.split('|').map(f => `'${decodeURIComponent(f.replace(/\+/g, ' '))}'`).join(', ');
+      document.body.style.fontFamily = fontList + ', sans-serif';
+      // Cambiar también en #code y en el botón
+      document.getElementById('code').style.fontFamily = fontList + ', serif';
+      document.querySelector('button').style.fontFamily = fontList + ', serif';
+      // Cambiar en .infoC y .footer-link
+      document.querySelectorAll('.infoC, .footer-link').forEach(el => {
+        el.style.fontFamily = fontList + ', sans-serif';
+      });
+    }
+
+    const codeEl = document.getElementById("code");
+    const progressEl = document.getElementById("progress");
+    const buttonEl = document.querySelector("button");
+
+    // Cambiar texto del botón copiar
+    buttonEl.textContent = copiarTxt;
+
+    async function update() {
+      if (!secret) {
+        codeEl.textContent = "Mal Configurado";
+        return;
+      }
+      const otp = await generateTOTP(secret);
+      codeEl.textContent = otp;
+      // progreso
+      const seconds = Math.floor(Date.now() / 1000) % 30;
+      const percent = ((30 - seconds) / 30) * 100;
+      progressEl.style.width = percent + "%";
+    }
+
+    function copyCode() {
+      navigator.clipboard.writeText(codeEl.textContent);
+      // mostrar notificación
+      buttonEl.textContent = copiadoTxt;
+      setTimeout(() => {
+        buttonEl.textContent = copiarTxt;
+      }, 1000);
+    }
+
+    setInterval(update, 1000);
+    update();
+  </script>
+</body>
+</html>
